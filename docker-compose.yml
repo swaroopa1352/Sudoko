@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: sudoko-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Triveni@123
+      POSTGRES_DB: sudoko
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+volumes:
+  pgdata:

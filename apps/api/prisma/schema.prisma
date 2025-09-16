@@ -1,0 +1,19 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model GameRun {
+  id         String   @id @default(cuid())
+  seed       String
+  difficulty String
+  seconds    Int
+  hintsUsed  Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([difficulty, seconds])
+}
