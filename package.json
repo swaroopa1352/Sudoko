@@ -1,0 +1,9 @@
+{
+  "name": "sudoko",
+  "private": true,
+  "packageManager": "pnpm@9.6.0",
+  "scripts": {
+    "dev:web": "pnpm --filter @sudoko/web dev",
+    "dev:api": "pnpm --filter @sudoko/api dev"
+  }
+}
