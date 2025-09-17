@@ -4,8 +4,6 @@ A production-style Sudoku (yes, **Sudoko** is the project name 😉) built with 
 
 **Tech:** React, Vite, TypeScript, Tailwind CSS, Fastify, Zod, PostgreSQL, Prisma, Docker, pnpm
 
----
-
 ## ✨ Features
 
 - **Sudoku engine**
@@ -22,7 +20,8 @@ A production-style Sudoku (yes, **Sudoko** is the project name 😉) built with 
 
 - **Persistence & UX**
   - Snapshot saved to `localStorage` (`difficulty`, `puzzle`, `board`, `seconds`, `hintsLeft`)
-  - Sticky across refresh (same seed & state), but **changing difficulty auto-fetches a new puzzle**
+  - Sticky across refresh (same seed & state), but **changing difficulty auto-fetches a new -
+    puzzle**
 
 - **Leaderboard (PostgreSQL + Prisma)**
   - Submit `seed`, `difficulty`, `seconds`, `hintsUsed`
@@ -34,4 +33,8 @@ A production-style Sudoku (yes, **Sudoko** is the project name 😉) built with 
 - DB: PostgreSQL 16 (Docker)
 - Web: Vite + React + TypeScript + Tailwind CSS
 - Package manager: pnpm (workspace)
+## 📸 Screenshots
+<img width="1910" height="992" alt="image" src="https://github.com/user-attachments/assets/120477d2-80c6-42d6-bff6-f69497d5eed6" />
+
+
 
