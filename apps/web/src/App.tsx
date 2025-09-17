@@ -3,6 +3,7 @@ import { useEffect, useState, useRef} from 'react'
 type Puzzle = { seed: string; board: string; solved: string }
 type Difficulty = 'easy' | 'medium' | 'hard' | 'expert'
 type LBEntry = { id: string; seed: string; difficulty: string; seconds: number; hintsUsed: number; createdAt: string };
+type Me = { email: string } | null;
 
 function cellKey(i: number) {
   const r = Math.floor(i / 9), c = i % 9
@@ -28,6 +29,7 @@ export default function App() {
   const [selected, setSelected] = useState<number | null>(null);
   const skipNextDifficultyEffect = useRef(true);
   const SHOW_DEBUG = false;
+  const [me, setMe] = useState<Me>(null);
 
 
   function saveSnapshot(partial?: Partial<Saved>) {
@@ -72,6 +74,43 @@ export default function App() {
     setLeaderboard(data.entries ?? []);
   }
 
+  async function fetchMe() {
+    const r = await fetch('/api/me', { credentials: 'include' });
+    setMe(r.ok ? await r.json() : null);
+  }
+
+  async function register(email: string, password: string) {
+    const r = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+    if (r.ok) await fetchMe();
+    const e = await r.json().catch(() => ({}));
+    alert(e.error || 'Register failed');
+  }
+
+  async function login(email: string, password: string) {
+    const r = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ email, password }),
+    });
+    if (r.ok) {
+      await fetchMe();
+      return;
+    }
+    const e = await r.json().catch(() => ({}));
+    alert(e.error || 'Register failed');
+  }
+  
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    setMe(null);
+  }
+
   async function submitScoreIfComplete(seconds: number, hintsUsed: number) {
     if (!puzzle || submitted) return;
     // only submit when solved
@@ -111,6 +150,9 @@ export default function App() {
     loadPuzzle(difficulty);
   }, [difficulty]);
 
+  useEffect(() => {
+    fetchMe().catch(() => {});
+  }, []);
 
 
   useEffect(() => {
@@ -133,23 +175,6 @@ export default function App() {
     const id = setInterval(() => setSeconds(s => s + 1), 1000);
     return () => clearInterval(id);
   }, [running]);
-
-  // load saved seconds for this seed
-  // useEffect(() => {
-  //   if (!puzzle) return;
-  //   const saved = Number(localStorage.getItem(`sudoko:${puzzle.seed}:hintsLeft`));
-  //   if (Number.isFinite(saved) && saved >= 0 && saved <= MAX_HINTS) {
-  //     setHintsLeft(saved);
-  //   } else {
-  //     setHintsLeft(MAX_HINTS);
-  //   }
-  // }, [puzzle?.seed]);
-
-  // save on change
-  // useEffect(() => {
-  //   if (!puzzle) return;
-  //   localStorage.setItem(`sudoko:${puzzle.seed}:hintsLeft`, String(hintsLeft));
-  // }, [hintsLeft, puzzle?.seed]);
 
   useEffect(() => {
     const raw = localStorage.getItem('sudoko:last');
@@ -251,7 +276,42 @@ export default function App() {
   const solved = !!puzzle && board === puzzle.solved
   
 
-  
+  // ---- Auth gate: show login/register until we're signed in ----
+  if (!me) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-6">
+        <div className="w-full max-w-sm bg-white border rounded-xl p-4 shadow-sm">
+          <h1 className="text-2xl font-bold text-center mb-4">Sudoko</h1>
+          <div className="flex flex-col gap-2">
+            <input id="email" placeholder="email" className="border rounded px-3 py-2" />
+            <input id="pwd" placeholder="password (min 6)" type="password" className="border rounded px-3 py-2" />
+            <button
+              onClick={() => {
+                const email = (document.getElementById('email') as HTMLInputElement).value;
+                const pwd = (document.getElementById('pwd') as HTMLInputElement).value;
+                register(email, pwd);
+              }}
+              className="border rounded px-3 py-2 hover:bg-gray-100"
+            >
+              Register
+            </button>
+            <button
+              onClick={() => {
+                const email = (document.getElementById('email') as HTMLInputElement).value;
+                const pwd = (document.getElementById('pwd') as HTMLInputElement).value;
+                login(email, pwd);
+              }}
+              className="border rounded px-3 py-2 hover:bg-gray-100"
+            >
+              Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // ---- end auth gate ----
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center gap-6 p-6">
       <h1 className="text-3xl font-extrabold tracking-tight text-center">Sudoko</h1>

@@ -17,3 +17,10 @@ model GameRun {
 
   @@index([difficulty, seconds])
 }
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
