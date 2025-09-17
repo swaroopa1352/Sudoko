@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef} from 'react'
 
 type Puzzle = { seed: string; board: string; solved: string }
 type Difficulty = 'easy' | 'medium' | 'hard' | 'expert'
@@ -8,6 +8,7 @@ function cellKey(i: number) {
   const r = Math.floor(i / 9), c = i % 9
   return `${r}-${c}`
 }
+
 
 export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>('easy')
@@ -24,25 +25,44 @@ export default function App() {
   const [hasStarted, setHasStarted] = useState(false);
   const [leaderboard, setLeaderboard] = useState<LBEntry[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [selected, setSelected] = useState<number | null>(null);
+  const skipNextDifficultyEffect = useRef(true);
+  const SHOW_DEBUG = false;
+
+
+  function saveSnapshot(partial?: Partial<Saved>) {
+    if (!puzzle) return;
+    const snapshot: Saved = {
+      difficulty,
+      puzzle,
+      board,
+      seconds,
+      hintsLeft,
+      ...partial,
+    };
+    localStorage.setItem('sudoko:last', JSON.stringify(snapshot));
+  }
 
   async function loadPuzzle(diff: Difficulty) {
     try {
-      setStatus(`loading ${diff}…`)
-      const res = await fetch(`/api/puzzle?difficulty=${diff}`)
-      const p: Puzzle = await res.json()
-      setPuzzle(p)
-      setBoard(p.board)
-      setGivens(Array.from(p.board).map(ch => ch !== '0'))
+      setStatus(`loading ${diff}…`);
+      const res = await fetch(`/api/puzzle?difficulty=${diff}`);
+      const p: Puzzle = await res.json();
+      setPuzzle(p);
+      setBoard(p.board);
+      setGivens(Array.from(p.board).map(ch => ch !== '0'));
       setSubmitted(false);
       await loadLeaderboard(diff);
       setSeconds(0);          
       setRunning(false);
       setHasStarted(false);
-      setHintsLeft(MAX_HINTS) 
-      setStatus(`loaded seed=${p.seed}`)
+      setHintsLeft(MAX_HINTS);
+      setStatus(`loaded seed=${p.seed}`);
+      setSelected(null);
+      saveSnapshot({ difficulty: diff, puzzle: p, board: p.board, seconds: 0, hintsLeft: MAX_HINTS });
     } catch (e) {
-      console.error(e)
-      setStatus('error fetching puzzle')
+      console.error(e);
+      setStatus('error fetching puzzle');
     }
   }
 
@@ -73,22 +93,30 @@ export default function App() {
     }
   }
 
+  type Saved = {
+    difficulty: Difficulty;
+    puzzle: Puzzle;
+    board: string;
+    seconds: number;     // from your timer
+    hintsLeft: number;   // from your hint limit
+  };
+  
+  useEffect(() => {
+    if (skipNextDifficultyEffect.current) {
+      // Skip this run (first mount OR programmatic set from restore)
+      skipNextDifficultyEffect.current = false;
+      return;
+    }
+    // User actually changed the dropdown -> fetch a new puzzle
+    loadPuzzle(difficulty);
+  }, [difficulty]);
+
+
 
   useEffect(() => {
-    loadPuzzle(difficulty).catch(console.error)
-  }, [difficulty])
+    saveSnapshot();
+  }, [board, seconds, hintsLeft, difficulty, puzzle?.seed]);
 
-  // 🔒 Persist / Restore progress per seed
-  useEffect(() => {
-    if (!puzzle) return
-    const saved = localStorage.getItem(`sudoko:${puzzle.seed}`)
-    if (saved && saved.length === 81) setBoard(saved)
-  }, [puzzle?.seed])
-
-  useEffect(() => {
-    if (!puzzle) return
-    localStorage.setItem(`sudoko:${puzzle.seed}`, board)
-  }, [board, puzzle?.seed])
 
   useEffect(() => {
     if (!puzzle) return;
@@ -100,7 +128,6 @@ export default function App() {
   }, [board, puzzle?.solved, seconds, hintsLeft]);
 
 
-
   useEffect(() => {
     if (!running) return;
     const id = setInterval(() => setSeconds(s => s + 1), 1000);
@@ -108,25 +135,56 @@ export default function App() {
   }, [running]);
 
   // load saved seconds for this seed
-  useEffect(() => {
-    if (!puzzle) return;
-    const saved = Number(localStorage.getItem(`sudoko:${puzzle.seed}:seconds`) || '0');
-    if (!Number.isNaN(saved)) setSeconds(saved);
-  }, [puzzle?.seed]);
+  // useEffect(() => {
+  //   if (!puzzle) return;
+  //   const saved = Number(localStorage.getItem(`sudoko:${puzzle.seed}:hintsLeft`));
+  //   if (Number.isFinite(saved) && saved >= 0 && saved <= MAX_HINTS) {
+  //     setHintsLeft(saved);
+  //   } else {
+  //     setHintsLeft(MAX_HINTS);
+  //   }
+  // }, [puzzle?.seed]);
 
   // save on change
+  // useEffect(() => {
+  //   if (!puzzle) return;
+  //   localStorage.setItem(`sudoko:${puzzle.seed}:hintsLeft`, String(hintsLeft));
+  // }, [hintsLeft, puzzle?.seed]);
+
   useEffect(() => {
-    if (!puzzle) return;
-    localStorage.setItem(`sudoko:${puzzle.seed}:seconds`, String(seconds));
-  }, [seconds, puzzle?.seed]);
+    const raw = localStorage.getItem('sudoko:last');
+    if (raw) {
+      try {
+        const s: Saved = JSON.parse(raw);
+        setDifficulty(s.difficulty);
+        setPuzzle(s.puzzle);
+        setBoard(s.board || s.puzzle.board);
+        setGivens(Array.from(s.puzzle.board).map(ch => ch !== '0'));
+        skipNextDifficultyEffect.current = true;
+
+        // if you implemented timer + hint limit earlier:
+        setSeconds(s.seconds ?? 0);
+        setHintsLeft(s.hintsLeft ?? MAX_HINTS);
+        setStatus(`loaded seed=${s.puzzle.seed} (saved)`);
+        return;
+      } catch (e) {
+        console.error('restore failed', e);
+      }
+    }
+    setStatus('Click "New puzzle" to begin');
+  }, []);
+
 
   const handleInput = (i: number, val: string) => {
-    if (!hasStarted) { setHasStarted(true); setRunning(true); }
+    setSelected(i);
+    // if (!hasStarted) { setHasStarted(true); setRunning(true); }
     if (givens[i]) return
-    const d = val.replace(/[^1-9]/g, '')
-    const v = d === '' ? '0' : d[0]
-    setBoard(b => b.slice(0, i) + v + b.slice(i + 1))
-  }
+    if (!running) setRunning(true);
+    if (!hasStarted) setHasStarted(true);
+    const d = val.replace(/[^1-9]/g, '');
+    const v = d === '' ? '0' : d[0];
+    setBoard(b => b.slice(0, i) + v + b.slice(i + 1));
+  };
 
   const reset = () => {
     if (!puzzle) return;
@@ -135,12 +193,6 @@ export default function App() {
     setRunning(false);
     setHasStarted(false);
     setHintsLeft(MAX_HINTS);          
-  }
-
-  const checkSolution = () => {
-    if (!puzzle) return
-    const ok = board === puzzle.solved
-    alert(ok ? '✅ Correct solution!' : '❌ Not correct yet. Keep going!')
   }
 
   const formatTime = (s: number) => {
@@ -153,16 +205,24 @@ export default function App() {
   };
 
   const giveHint = () => {
-    if (!puzzle) return
-    if (hintsLeft <= 0) {
-      alert('No hints left (max 3 per puzzle).')
-      return
+    if (!puzzle) return;
+    if (board === puzzle.solved) {  // optional: don’t hint after completion
+      alert('Already solved!');
+      return;
     }
-    const i = board.indexOf('0')
-    if (i === -1) { alert('Board already full!'); return }
-    const next = board.slice(0, i) + puzzle.solved[i] + board.slice(i + 1)
-    setBoard(next)
-    setHintsLeft(h => h - 1)
+    if (hintsLeft <= 0) {
+      alert('No hints left (max 3 per puzzle).');
+      return;
+    }
+    if (selected === null) { alert('Click/select a cell to place a hint.'); return; }
+    if (givens[selected]) { alert('Cannot place a hint on a given cell.'); return; }
+    if (board[selected] !== '0') { alert('Cell is not empty. Clear it or select another cell.'); return; }
+    
+    // const i = board.indexOf('0')
+    // if (i === -1) { alert('Board already full!'); return }
+    const next = board.slice(0, selected) + puzzle.solved[selected] + board.slice(selected + 1);
+    setBoard(next);
+    setHintsLeft(h => h - 1);
   }
 
   const isConflict = (i: number): boolean => {
@@ -187,11 +247,14 @@ export default function App() {
     return false
   }
 
-  const complete = board.indexOf('0') === -1
+  const filled = board.indexOf('0') === -1
+  const solved = !!puzzle && board === puzzle.solved
+  
 
+  
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col items-center gap-6 p-6">
-      <h1 className="text-3xl font-extrabold tracking-tight">Sudoko</h1>
+      <h1 className="text-3xl font-extrabold tracking-tight text-center">Sudoko</h1>
 
       {/* Controls */}
       <div className="flex items-center gap-3">
@@ -212,9 +275,6 @@ export default function App() {
         <button onClick={reset} className="border px-3 py-1 rounded hover:bg-gray-100">
           Reset
         </button>
-        <button onClick={checkSolution} className="border px-3 py-1 rounded hover:bg-gray-100">
-          Check solution
-        </button>
         {/* Timer UI */}
         <div className="ml-4 flex items-center gap-2">
           <span className="text-sm">Time:</span>
@@ -234,7 +294,9 @@ export default function App() {
             Reset time
           </button>
         </div>
-        <button onClick={giveHint} disabled={hintsLeft <= 0} 
+        <button 
+          onClick={giveHint} 
+          disabled={hintsLeft <= 0} 
           className= {
             "border px-3 py-1 rounded hover:bg-gray-100" + 
             (hintsLeft <= 0 ? "opacity-50 cursor-not-allowed" : "") 
@@ -253,10 +315,15 @@ export default function App() {
         </label>
       </div>
 
-      {/* Status */}
-      <div className="text-sm text-gray-600">
-        {status} {puzzle && <>• seed: <span className="font-mono">{puzzle.seed}</span></>}
-      </div>
+      {/* Status (hidden unless debugging) */}
+      {SHOW_DEBUG ? (
+        <div className="text-sm text-gray-600">
+          {status} {puzzle && <>• seed: <span className="font-mono">{puzzle.seed}</span></>}
+        </div>
+      ) : (
+        // keep status for screen readers but not visible
+        <div className="sr-only" aria-live="polite">{status}</div>
+      )}
 
       {/* Grid */}
       <div className="grid grid-cols-9 gap-[2px] p-1 bg-black/10">
@@ -282,16 +349,19 @@ export default function App() {
               key={cellKey(i)}
               value={value}
               onChange={e => handleInput(i, e.target.value)}
+              onFocus={() => setSelected(i)}
+              onClick={() => setSelected(i)}
               maxLength={1}
               disabled={given}
               inputMode="numeric"
               pattern="[0-9]*"
               className={
-                "w-10 h-10 text-center border " +
+                "size-12 md:size-12 lg:size-12 text-center border-gray-300 " +
                 th + tb +
-                (given ? " bg-gray-200 font-semibold" : " bg-white") +
+                (given ? " bg-gray-200 font-semibold cursor-not-allowed select-none" : " bg-white") +
                 (conflict ? " text-red-600 border-red-500" : "") +
-                (mistake ? " bg-rose-100 border-rose-400" : "")
+                (mistake ? " bg-rose-100 border-rose-400" : "") +
+                (selected === i ? " ring-2 ring-blue-400" : "")
               }
             />
           )
@@ -300,7 +370,7 @@ export default function App() {
       
       <div className="w-full max-w-md">
         <h2 className="text-lg font-semibold mb-2">Top Times — {difficulty}</h2>
-        <div className="border rounded">
+        <div className="border rounded-xl shadow-sm bg-white">
           <div className="grid grid-cols-4 text-xs font-medium bg-gray-100 px-2 py-1">
             <div>#</div><div>Time</div><div>Hints</div><div>Date</div>
           </div>
@@ -320,7 +390,13 @@ export default function App() {
       </div>
 
       <div className="text-sm text-gray-600">
-        {complete ? <span className="text-green-700 font-semibold">Complete!</span> : 'Keep going…'}
+        {solved ? (
+           <span className="text-green-700 font-semibold">Solved!</span>
+        ) : filled ? (
+          <span className="text-amber-700">All cells filled — some are wrong.</span>
+        ) : (
+          'Keep going…'
+        )}
       </div>
     </div>
   )
