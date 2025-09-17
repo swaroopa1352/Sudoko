@@ -27,8 +27,11 @@ A production-style Sudoku (yes, **Sudoko** is the project name 😉) built with 
 - **Leaderboard (PostgreSQL + Prisma)**
   - Submit `seed`, `difficulty`, `seconds`, `hintsUsed`
   - View top times per difficulty (sorted by time → hints → date)
+ 
+## ⚙️ Environment
 
----
-
-## 🗂 Project Structure
+- API: Node 20+, Fastify, Zod, Prisma
+- DB: PostgreSQL 16 (Docker)
+- Web: Vite + React + TypeScript + Tailwind CSS
+- Package manager: pnpm (workspace)
 
