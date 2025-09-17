@@ -2,7 +2,7 @@
 
 A production-style Sudoku (yes, **Sudoko** is the project name 😉) built with **React + TypeScript** (Vite) on the front end and **Fastify + TypeScript** on the back end, with a **PostgreSQL + Prisma** leaderboard. It features a real solver, difficulty-graded puzzles, a polished grid UI, a timer, limited hints, sticky state across refreshes, and a top-times leaderboard.
 
-> **Tech:** React, Vite, TypeScript, Tailwind CSS, Fastify, Zod, PostgreSQL, Prisma, Docker, pnpm
+**Tech:** React, Vite, TypeScript, Tailwind CSS, Fastify, Zod, PostgreSQL, Prisma, Docker, pnpm
 
 ---
 
